@@ -32,11 +32,12 @@ void Utilities::addLine(const std::string& filename, const std::vector<double>& 
     outFile.close();
 }
 
+template <std::size_t Dim>
 void Utilities::parallelSims(float width, float height, float scaleFactor, uint32_t seed, float scaleNoise, float v, unsigned int numParticles, const float dt)
 {
     unsigned int terminationCount = 300;
 
-    Swarm swarm(width, height, scaleFactor, seed, scaleNoise, v, numParticles, 1);
+    Swarm<Dim> swarm(width, height, scaleFactor, seed, scaleNoise, v, numParticles, 1);
     
     while (true)
     {

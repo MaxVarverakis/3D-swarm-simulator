@@ -5,6 +5,8 @@ layout (location = 0) out vec4 FragColor;
 in vec4 v_Color;
 in vec2 v_UV;
 
+uniform bool u_2D;
+
 const float transition_fuzz = 0.1;
 
 void main()
@@ -13,14 +15,20 @@ void main()
     float dist = dot(v_UV, v_UV); // save the sqrt comparing squares instead (r_local^2 = 1^2 = 1)
     if (dist > 1.0) discard; // crop to circle
 
-    // 3D sphere normal
-    float z = sqrt(1.0 - dist);
-    vec3 normal = vec3(v_UV, z);
+    if (u_2D)
+    {
+        FragColor = smoothstep(0.0, transition_fuzz, 1.0 - dist) * v_Color;
+    }
+    else
+    {
+        // 3D sphere normal
+        float z = sqrt(1.0 - dist);
+        vec3 normal = vec3(v_UV, z);
 
-    // Lighting calculations
-    vec3 lightDir = normalize(vec3(0.5, 0.8, 1.0)); // Directional light
-    float diff = max(dot(normal, lightDir), 0.1); // Diffuse shading with minimum ambient light
+        // Lighting calculations
+        vec3 lightDir = normalize(vec3(0.5, 0.8, 1.0)); // Directional light
+        float diff = max(dot(normal, lightDir), 0.1); // Diffuse shading with minimum ambient light
 
-    // float alpha = smoothstep(0.0, transition_fuzz, 1.0 - dist) * v_Color.a;
-    FragColor = vec4(diff * v_Color.rgb, v_Color.a);
+        FragColor = vec4(diff * v_Color.rgb, v_Color.a);
+    }
 }

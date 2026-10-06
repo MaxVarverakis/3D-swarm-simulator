@@ -39,6 +39,7 @@ namespace Utilities
         outFile.close();
     }
 
+    template <std::size_t Dim>
     void parallelSims(float width, float height, float scaleFactor, uint32_t seed, float scaleNoise, float v, unsigned int numParticles, const float dt);
 
     // Fast, deterministic 32-bit hash function
@@ -54,4 +55,43 @@ namespace Utilities
         return a;
     }
 
+}
+
+struct BoundingBox
+{
+    std::vector<float> vertices;
+    std::vector<unsigned int> indices;
+    int components;
+};
+
+template <std::size_t Dim>
+BoundingBox createBoxData(float L)
+{
+    if constexpr (Dim == 2)
+    {
+        return BoundingBox{
+            {
+                0.0f, 0.0f,  L, 0.0f,  L, L,  L, 0.0f
+            },
+            {
+                0, 1,  1, 2,  2, 3,  3, 0
+            },
+            2
+        };
+    }
+    else
+    {
+        return BoundingBox{
+            {
+                0.0f, 0.0f, 0.0f,  L, 0.0f, 0.0f,  L, L, 0.0f,  0.0f, L, 0.0f, // back face
+                0.0f, 0.0f,    L,  L, 0.0f,    L,  L, L,    L,  0.0f, L,    L, // front face
+            },
+            {
+                0, 1,  1, 2,  2, 3,  3, 0, // back edges
+                4, 5,  5, 6,  6, 7,  7, 4, // front edges
+                0, 4,  1, 5,  2, 6,  3, 7 // side edges
+            },
+            3
+        };
+    }
 }

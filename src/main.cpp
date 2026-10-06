@@ -47,8 +47,10 @@ const float height { 800.0f };
 
 
 // project-specific settings
+constexpr std::size_t DIM { 3 };
+
 const float L { 100.0f };
-const float shape_scale { 1.0f };
+const float shape_scale { DIM == 3 ? 1.0f : 0.5f };
 const unsigned int numObjs { 100 };
 
 float v_magnitude { 1.0f };
@@ -68,17 +70,6 @@ float rotationSpeed = glm::radians(90.0f); // per IRL second
 
 // initialize random
 std::random_device rd;
-
-float boxVertices[24] = {
-    0.0f, 0.0f, 0.0f,  L, 0.0f, 0.0f,  L, L, 0.0f,  0.0f, L, 0.0f, // back face
-    0.0f, 0.0f,    L,  L, 0.0f,    L,  L, L,    L,  0.0f, L,    L, // front face
-};
-
-unsigned int boxIndices[24] = {
-    0, 1,  1, 2,  2, 3,  3, 0, // back edges
-    4, 5,  5, 6,  6, 7,  7, 4, // front edges
-    0, 4,  1, 5,  2, 6,  3, 7 // side edges
-};
 
 void set_sdl_gl_attributes()
 {
@@ -144,7 +135,8 @@ void printKey()
     std::cout << "###################################" << '\n' << '\n';
 }
 
-void imguiWindow(ImGuiIO& io, Swarm& swarm)
+template <std::size_t Dim>
+void imguiWindow(ImGuiIO& io, Swarm<Dim>& swarm)
 {
     ImGui::SetNextWindowCollapsed(ui_collapsed, ImGuiCond_Always);
 
@@ -224,7 +216,7 @@ int main()
             set_sdl_gl_attributes();
             
             // specifying the number of agents automatically generates random particles
-            Swarm swarm(L, shape_scale, rd(), noise, v_magnitude, numObjs, num_threads, 0);
+            Swarm<DIM> swarm(L, shape_scale, rd(), noise, v_magnitude, numObjs, num_threads, 0);
             // swarm.BC = false;
             
             window = SDL_CreateWindow("Swarm Simulation", 0.0f, 0.0f, static_cast<int>(width), static_cast<int>(height), SDL_WINDOW_OPENGL);
@@ -252,7 +244,14 @@ int main()
             }
 
             GLCall(glEnable(GL_BLEND));
-            GLCall(glEnable(GL_DEPTH_TEST));
+            if constexpr (DIM == 2)
+            {
+                GLCall(glDisable(GL_DEPTH_TEST));
+            }
+            else
+            {
+                GLCall(glEnable(GL_DEPTH_TEST));
+            }
             GLCall(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
 
             // GLCall(glEnable(GL_MULTISAMPLE));
@@ -287,8 +286,8 @@ int main()
             VertexBuffer posInstanceVBO(swarm.positions.data(), static_cast<unsigned int>(swarm.positions.size() * sizeof(swarm.positions[0])), GL_DYNAMIC_DRAW);
             VertexBuffer dirInstanceVBO(swarm.headings.data(), static_cast<unsigned int>(swarm.headings.size() * sizeof(swarm.headings[0])), GL_DYNAMIC_DRAW);
 
-            tri_VAO.addInstancedBuffer(posInstanceVBO, 3, 2); // location = 2
-            tri_VAO.addInstancedBuffer(dirInstanceVBO, 3, 3); // location = 3
+            tri_VAO.addInstancedBuffer(posInstanceVBO, DIM, 2); // location = 2
+            tri_VAO.addInstancedBuffer(dirInstanceVBO, DIM, 3); // location = 3
 
             // constructor automatically binds buffer
             IndexBuffer tri_IBO(triangles.m_indices.data(), static_cast<unsigned int>(triangles.m_indices.size()));
@@ -298,28 +297,44 @@ int main()
             tri_IBO.unbind();
 
             // bounding box setup
+            BoundingBox box = createBoxData<DIM>(L);
+
             VertexArray box_VAO;
-            VertexBuffer box_VBO(boxVertices, static_cast<unsigned int>(std::size(boxVertices) * sizeof(float)), GL_STATIC_DRAW);
+            VertexBuffer box_VBO(box.vertices.data(), static_cast<unsigned int>(box.vertices.size() * sizeof(float)), GL_STATIC_DRAW);
 
             // add buffer to VAO
             box_VAO.bind();
             box_VBO.bind();
             GLCall(glEnableVertexAttribArray(0));
-            GLCall(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), reinterpret_cast<const void*>(0))); // location = 0 since new VAO
+            GLCall(glVertexAttribPointer(0, box.components, GL_FLOAT, GL_FALSE, box.components * static_cast<int>(sizeof(float)), reinterpret_cast<const void*>(0))); // location = 0 since new VAO
 
             // create IBO, which is automatically bound to current VAO in the constructor
-            IndexBuffer box_IBO(boxIndices, static_cast<unsigned int>(std::size(boxIndices)));
+            IndexBuffer box_IBO(box.indices.data(), static_cast<unsigned int>(box.indices.size()));
 
             box_VBO.unbind();
             box_VAO.unbind();
             box_IBO.unbind();
 
-            // set up view/projection matrices
-            glm::mat4 proj { glm::perspective(glm::radians(45.0f), width / height, 0.1f, 1000.0f) };
+            glm::mat4 proj;
+            glm::mat4 view;
+            glm::vec3 domainCenter(0.0f);
+            glm::vec3 cameraPos(0.0f);
 
-            glm::vec3 domainCenter(L * 0.5f, L * 0.5f, L * 0.5f);
-            glm::vec3 cameraPos(L * 0.5f, L * 0.5f, cameraRadius); // backed up along z-direction
-            glm::mat4 view = glm::lookAt(cameraPos, domainCenter, glm::vec3(0.0f, 1.0f, 0.0f));
+            float aspect = width / height;
+
+            // set up view/projection matrices
+            if constexpr (DIM == 2)
+            {
+                proj = glm::ortho(0.0f, L * aspect, 0.0f, L, -1.0f, 1.0f);
+                view = glm::mat4(1.0f);
+            }
+            else
+            {
+                proj = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 1000.0f);
+                domainCenter = glm::vec3(L * 0.5f, L * 0.5f, L * 0.5f);
+                cameraPos = glm::vec3(L * 0.5f, L * 0.5f, cameraRadius); // backed up along z-direction
+                view = glm::lookAt(cameraPos, domainCenter, glm::vec3(0.0f, 1.0f, 0.0f));
+            }
 
             // shader stuff happens here
             Shader tri_shader("/Users/max/UCLA/Research/Codes/3DMF/shaders", "circle_cheat_");
@@ -328,13 +343,14 @@ int main()
             tri_shader.setUniformMatrix4fv("u_Proj", proj);
             tri_shader.setUniform1f("u_scale", shape_scale);
             tri_shader.setUniform1i("u_color", color);
+            tri_shader.setUniform1i("u_2D", DIM == 2);
             tri_shader.unbind();
 
             Shader line_shader("/Users/max/UCLA/Research/Codes/3DMF/shaders", "line_");
             line_shader.bind();
             line_shader.setUniformMatrix4fv("u_View", view);
             line_shader.setUniformMatrix4fv("u_Proj", proj);
-            line_shader.setUniform1i("u_border", border);
+            line_shader.setUniform1i("u_border", border && DIM == 3);
             line_shader.unbind();
 
             Renderer renderer;
@@ -369,23 +385,26 @@ int main()
                     checkKeysPressed(event);
                 }
 
-                const Uint8* keyState = SDL_GetKeyboardState(NULL);
+                if constexpr (DIM == 3)
+                {
+                    const Uint8* keyState = SDL_GetKeyboardState(NULL);
 
-                if (keyState[SDL_SCANCODE_LEFT])  cameraYaw   += rotationSpeed * dt;
-                if (keyState[SDL_SCANCODE_RIGHT]) cameraYaw   -= rotationSpeed * dt;
-                if (keyState[SDL_SCANCODE_UP])    cameraPitch -= rotationSpeed * dt;
-                if (keyState[SDL_SCANCODE_DOWN])  cameraPitch += rotationSpeed * dt;
+                    if (keyState[SDL_SCANCODE_LEFT])  cameraYaw   += rotationSpeed * dt;
+                    if (keyState[SDL_SCANCODE_RIGHT]) cameraYaw   -= rotationSpeed * dt;
+                    if (keyState[SDL_SCANCODE_UP])    cameraPitch -= rotationSpeed * dt;
+                    if (keyState[SDL_SCANCODE_DOWN])  cameraPitch += rotationSpeed * dt;
 
-                // prevent flipping
-                cameraPitch = glm::clamp(cameraPitch, glm::radians(-89.0f), glm::radians(89.0f));
+                    // prevent flipping
+                    cameraPitch = glm::clamp(cameraPitch, glm::radians(-89.0f), glm::radians(89.0f));
 
-                // orbit camera to match the keys pressed
-                cameraPos.z = domainCenter.z + cameraRadius * cosf(cameraPitch) * cosf(cameraYaw);
-                cameraPos.x = domainCenter.x + cameraRadius * cosf(cameraPitch) * sinf(cameraYaw);
-                cameraPos.y = domainCenter.y + cameraRadius * sinf(cameraPitch);
+                    // orbit camera to match the keys pressed
+                    cameraPos.z = domainCenter.z + cameraRadius * cosf(cameraPitch) * cosf(cameraYaw);
+                    cameraPos.x = domainCenter.x + cameraRadius * cosf(cameraPitch) * sinf(cameraYaw);
+                    cameraPos.y = domainCenter.y + cameraRadius * sinf(cameraPitch);
 
-                // rebuild view matrix
-                view = glm::lookAt(cameraPos, domainCenter, glm::vec3(0.0f, 1.0f, 0.0f)); 
+                    // rebuild view matrix
+                    view = glm::lookAt(cameraPos, domainCenter, glm::vec3(0.0f, 1.0f, 0.0f)); 
+                }
 
                 // (After event loop)
                 // Start the Dear ImGui frame
@@ -419,7 +438,7 @@ int main()
 
                 line_shader.bind();
                 line_shader.setUniformMatrix4fv("u_View", view);
-                line_shader.setUniform1i("u_border", border);
+                line_shader.setUniform1i("u_border", border && DIM == 3);
                 line_shader.unbind();
 
                 renderer.clear();

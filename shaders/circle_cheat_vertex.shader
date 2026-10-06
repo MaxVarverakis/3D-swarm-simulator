@@ -10,6 +10,7 @@ uniform mat4 u_View;
 uniform mat4 u_Proj;
 uniform float u_scale;
 uniform bool u_color;
+uniform bool u_2D;
 
 out vec4 v_Color;
 out vec2 v_UV;
@@ -27,12 +28,22 @@ void main()
 
     // obtain UVs for raytracing (already normalized to [-1, 1] in aPos)
     v_UV = aPos.xy;
-
-    float angle = atan(heading.y, heading.x);
     
     if (u_color)
     {
-        v_Color = vec4(heading * 0.5 + 0.5, 1.0);
+        if (u_2D)
+        {
+            float angle = atan(heading.y, heading.x);
+            float PI = 3.1415926535897932384626433832795;
+            float r = sin(angle) * 0.5 + 0.5;
+            float g = sin(angle + 2.0 * PI / 3.0) * 0.5 + 0.5;
+            float b = sin(angle + 4.0 * PI / 3.0) * 0.5 + 0.5;
+            v_Color = vec4(r, g, b, 1.0);
+        }
+        else
+        {
+            v_Color = vec4(heading * 0.5 + 0.5, 1.0);
+        }
     }
     else
     {
