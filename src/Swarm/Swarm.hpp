@@ -21,22 +21,23 @@ struct Swarm
 
     float L;
     vec domainMax;
-    float scale, eta, velocity;
+    float scale, eta, gamma, velocity;
     uint32_t master_seed;
 
     std::vector<vec> positions, headings;
-    
+
     unsigned int numThreads;
 
     uint64_t currentFrame;
 
     bool BC { true };
 
-    Swarm(float set_L, float scaleShape, uint32_t seed, float noise, float v, unsigned int numParticles, int num_threads, uint64_t frame = 0)
+    Swarm(float set_L, float set_scale, uint32_t seed, float noise, float set_gamma, float v, unsigned int numParticles, int num_threads, uint64_t frame = 0)
         : L { set_L }
         , domainMax { vec(set_L) }
-        , scale { scaleShape }
+        , scale { set_scale }
         , eta { noise }
+        , gamma { set_gamma }
         , velocity { v }
         , master_seed { seed }
         , numThreads { static_cast<unsigned int>(num_threads) }
@@ -158,7 +159,7 @@ struct Swarm
         }
     }
 
-    void mfSense(unsigned int pID, uint32_t frameHash, float gamma)
+    void mfSense(unsigned int pID, uint32_t frameHash)
     {
         // `mfSense` updates heading based off weighted MF vector
         
@@ -242,7 +243,7 @@ struct Swarm
         for (std::size_t i = 0; i < static_cast<std::size_t>(positions.size()); ++i)
         {
             unsigned int idx = static_cast<unsigned int>(i);
-            mfSense(idx, frameHash, 3.0f);
+            mfSense(idx, frameHash);
             // tradSense(idx, frameHash);
         }
 

@@ -25,7 +25,6 @@ namespace Utilities
         }
     };
 
-    
     template<typename... Args>
     void addLine(const std::string& filename, const Args&... args)
     {
@@ -40,7 +39,7 @@ namespace Utilities
     }
 
     template <std::size_t Dim>
-    void parallelSims(float width, float height, float scaleFactor, uint32_t seed, float scaleNoise, float v, unsigned int numParticles, const float dt);
+    void parallelSims(float L, float scale, uint32_t seed, float eta, float gamma, float v, unsigned int numParticles, float dt, unsigned int max_frame);
 
     // Fast, deterministic 32-bit hash function
     // https://gist.github.com/badboy/6267743#using-multiplication-for-hashing

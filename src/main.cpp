@@ -47,16 +47,17 @@ const float height { 800.0f };
 
 
 // project-specific settings
-constexpr std::size_t DIM { 3 };
+constexpr std::size_t DIM { 2 };
 
 const float L { 100.0f };
 const float shape_scale { DIM == 3 ? 1.0f : 0.5f };
 const unsigned int numObjs { 100 };
 
 float v_magnitude { 1.0f };
-float sim_DT { 1.0f / v_magnitude };
+float DT { 1.0f / v_magnitude };
 
 float noise { 0.1f };
+float gamma { 2.0f };
 
 bool color { true };
 bool border { true };
@@ -169,15 +170,16 @@ void imguiWindow(ImGuiIO& io, Swarm<Dim>& swarm)
     // Note: We expose &noise directly since it controls the swarm logic
     ImGui::Text("Physics Parameters:");
     ImGui::SliderFloat("Noise Scale (Eta)", &noise, 0.0f, 1.0f, "%.3f");
+    ImGui::SliderFloat("Mean Field Weight (Gamma)", &gamma, 0.0f, 10.0f, "%.2f");
     
     // modify agent colors
     ImGui::Checkbox("Heading-based colors", &color);
-    ImGui::Checkbox("Show bounding box", &border);
+    if constexpr (Dim == 3) { ImGui::Checkbox("Show bounding box", &border); }
     
     // swarm info
     ImGui::Text("Particle Count: %u", numObjs);
     ImGui::Text("Frame Count: %llu", swarm.currentFrame);
-    // ImGui::Text("Simulation Time: %.2f s", static_cast<double>(sim_DT) * static_cast<double>(swarm.currentFrame));
+    // ImGui::Text("Simulation Time: %.2f s", static_cast<double>(DT) * static_cast<double>(swarm.currentFrame));
 
     ImGui::Separator();
 
@@ -216,7 +218,7 @@ int main()
             set_sdl_gl_attributes();
             
             // specifying the number of agents automatically generates random particles
-            Swarm<DIM> swarm(L, shape_scale, rd(), noise, v_magnitude, numObjs, num_threads, 0);
+            Swarm<DIM> swarm(L, shape_scale, rd(), noise, gamma, v_magnitude, numObjs, num_threads, 0);
             // swarm.BC = false;
             
             window = SDL_CreateWindow("Swarm Simulation", 0.0f, 0.0f, static_cast<int>(width), static_cast<int>(height), SDL_WINDOW_OPENGL);
@@ -337,7 +339,7 @@ int main()
             }
 
             // shader stuff happens here
-            Shader tri_shader("/Users/max/UCLA/Research/Codes/3DMF/shaders", "circle_cheat_");
+            Shader tri_shader("/Users/max/UCLA/Research/Codes/MeanField/shaders", "circle_cheat_");
             tri_shader.bind();
             tri_shader.setUniformMatrix4fv("u_View", view);
             tri_shader.setUniformMatrix4fv("u_Proj", proj);
@@ -346,7 +348,7 @@ int main()
             tri_shader.setUniform1i("u_2D", DIM == 2);
             tri_shader.unbind();
 
-            Shader line_shader("/Users/max/UCLA/Research/Codes/3DMF/shaders", "line_");
+            Shader line_shader("/Users/max/UCLA/Research/Codes/MeanField/shaders", "line_");
             line_shader.bind();
             line_shader.setUniformMatrix4fv("u_View", view);
             line_shader.setUniformMatrix4fv("u_Proj", proj);
@@ -385,6 +387,7 @@ int main()
                     checkKeysPressed(event);
                 }
 
+                // 3D camera movement
                 if constexpr (DIM == 3)
                 {
                     const Uint8* keyState = SDL_GetKeyboardState(NULL);
@@ -417,12 +420,14 @@ int main()
                 if (not paused)
                 {
                     swarm.eta = noise;
-                    swarm.update(sim_DT);
+                    swarm.gamma = gamma;
+                    swarm.update(DT);
                 }
                 if (step)
                 {
                     swarm.eta = noise;
-                    swarm.update(sim_DT);
+                    swarm.gamma = gamma;
+                    swarm.update(DT);
                     step = false;
                 }
                 
@@ -503,22 +508,28 @@ int main()
     else
     {
         // parallel compute no graphics
+        // export position/velocity data for multiple different runs
 
-        // TODO: thread pooling
         std::cout << "Thread count: " << num_threads << '\n';
 
-        // std::vector<unsigned int> NNList{1, 2, 4, 8, 16, 24};
-        // std::vector<std::thread> workers;
-        // workers.reserve((NNList.size()));
+        // std::vector<float> etas{0.0f, 0.1f, 1.0f};
+        // std::vector<float> gammas{1.0f, 2.0f, 2.5f, 3.0f};
+        // #pragma omp parallel for collapse(2) schedule(dynamic)
+        // for (std::size_t i = 0; i < etas.size(); ++i)
+        // {
+        //     for (std::size_t j = 0; j < gammas.size(); ++j)
+        //     {
+        //         // Force each simulation run to execute single-threaded internally 
+        //         // to prevent nested thread explosion
+        //         omp_set_num_threads(1);
+                
+        //         std::cout << gammas.size() * i + j + 1 << '\n';
 
-        // for (unsigned int i = 0; i < NNList.size(); ++i)
-        // {
-        //     workers.emplace_back(&Utilities::parallelSims, width, height, shape_scale, rd(), noise, NNList[i], v_magnitude, numObjs, sim_DT);
-        // }
-        
-        // for (auto& thread : workers)
-        // {
-        //     thread.join();
+        //         Utilities::parallelSims<DIM>(
+        //             L, shape_scale, rd(), etas[i], gammas[j], 
+        //             v_magnitude, numObjs, DT, static_cast<unsigned int>(1e5)
+        //         );
+        //     }
         // }
     }
 }
