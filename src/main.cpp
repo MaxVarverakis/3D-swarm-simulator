@@ -47,7 +47,7 @@ const float height { 800.0f };
 
 
 // project-specific settings
-constexpr std::size_t DIM { 2 };
+constexpr std::size_t DIM { 3 };
 
 const float L { 100.0f };
 const float shape_scale { DIM == 3 ? 1.0f : 0.5f };
@@ -57,7 +57,7 @@ float v_magnitude { 1.0f };
 float DT { 1.0f / v_magnitude };
 
 float noise { 0.1f };
-float gamma { 2.0f };
+float gamma { 3.0f };
 
 bool color { true };
 bool border { true };
@@ -510,26 +510,32 @@ int main()
         // parallel compute no graphics
         // export position/velocity data for multiple different runs
 
+        auto step_start = std::chrono::high_resolution_clock::now();
+
         std::cout << "Thread count: " << num_threads << '\n';
 
-        // std::vector<float> etas{0.0f, 0.1f, 1.0f};
-        // std::vector<float> gammas{1.0f, 2.0f, 2.5f, 3.0f};
-        // #pragma omp parallel for collapse(2) schedule(dynamic)
-        // for (std::size_t i = 0; i < etas.size(); ++i)
-        // {
-        //     for (std::size_t j = 0; j < gammas.size(); ++j)
-        //     {
-        //         // Force each simulation run to execute single-threaded internally 
-        //         // to prevent nested thread explosion
-        //         omp_set_num_threads(1);
+        std::vector<float> etas{0.0f, 0.1f, 1.0f};
+        std::vector<float> gammas{0.0f, 1.0f, 2.0f, 2.5f, 3.0f};
+        #pragma omp parallel for collapse(2) schedule(dynamic)
+        for (std::size_t i = 0; i < etas.size(); ++i)
+        {
+            for (std::size_t j = 0; j < gammas.size(); ++j)
+            {
+                // Force each simulation run to execute single-threaded internally 
+                // to prevent nested thread explosion
+                omp_set_num_threads(1);
                 
-        //         std::cout << gammas.size() * i + j + 1 << '\n';
+                std::cout << gammas.size() * i + j + 1 << '\n';
 
-        //         Utilities::parallelSims<DIM>(
-        //             L, shape_scale, rd(), etas[i], gammas[j], 
-        //             v_magnitude, numObjs, DT, static_cast<unsigned int>(1e5)
-        //         );
-        //     }
-        // }
+                Utilities::parallelSims<2>(
+                    L, shape_scale, rd(), etas[i], gammas[j], 
+                    v_magnitude, numObjs, DT, static_cast<unsigned int>(1e5)
+                );
+            }
+        }
+
+        auto step_end = std::chrono::high_resolution_clock::now();
+        auto seconds = std::chrono::duration_cast<std::chrono::seconds>(step_end - step_start);
+        std::cout << "Elapsed time:" << '\t' << seconds << " s" << '\n';
     }
 }

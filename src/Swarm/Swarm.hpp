@@ -171,6 +171,7 @@ struct Swarm
         vec numerator(0.0f);
         float denominator = 0.0f;
 
+        // calculate weighted mean field vector D
         for (unsigned int i = 0; i < positions.size(); ++i)
         {
             if (i != pID)
@@ -191,7 +192,6 @@ struct Swarm
         
         // enforce heading vector is normalized
         vhat = glm::normalize(vhat);
-
         applyNoise(pID, frameHash, vhat);
     }
 

@@ -36,6 +36,7 @@ template <std::size_t Dim>
 void Utilities::parallelSims(float L, float scale, uint32_t seed, float eta, float gamma, float v, unsigned int numParticles, float dt, unsigned int max_frame)
 {
     Swarm<Dim> swarm(L, scale, seed, eta, gamma, v, numParticles, 1);
+    swarm.BC = false;
 
     // func wrapper for "write vals to file"
     // ************************************
@@ -44,20 +45,26 @@ void Utilities::parallelSims(float L, float scale, uint32_t seed, float eta, flo
 
     std::string gamma_string = std::format("{:.1f}", swarm.gamma);
     std::string eta_string = std::format("{:.1f}", swarm.eta);
+    std::string front_path = "/Users/max/UCLA/Research/Codes/Data/<path>/";
 
-    std::string md_path { "/Users/max/UCLA/Research/Codes/Data/JF2026_Fig2_Gamma_Eta_sweep/meta_data_g_" + gamma_string + "_eta_" + eta_string };
-    std::string d_path { "/Users/max/UCLA/Research/Codes/Data/JF2026_Fig2_Gamma_Eta_sweep/swarm_data_g_" + gamma_string + "_eta_" + eta_string };
+    std::string md_path { front_path + "meta_data_g_" + gamma_string + "_eta_" + eta_string };
+    std::string d_path { front_path + "swarm_data_g_" + gamma_string + "_eta_" + eta_string };
 
-    Utilities::addLine(md_path, "Dim", 'N', 'L', "master_seed", "eta", "gamma", "BC");
-    Utilities::addLine(md_path, Dim, numParticles, L, swarm.master_seed, swarm.eta, swarm.gamma, swarm.BC);
+    {
+        std::ofstream md_file = openFile(md_path);
+        addLineAlreadyOpen(md_file, "Dim", 'N', 'L', "master_seed", "eta", "gamma", "BC");
+        addLineAlreadyOpen(md_file, Dim, numParticles, L, swarm.master_seed, swarm.eta, swarm.gamma, swarm.BC);
+    } // md_file closes once out of scope here
     
+    std::ofstream d_file = openFile(d_path);
+
     if (Dim == 2)
     {
-        Utilities::addLine(d_path, "id", 'x', 'y', "vx", "vy");
+        addLineAlreadyOpen(d_file, "id", 'x', 'y', "vx", "vy");
     }
     else
     {
-        Utilities::addLine(d_path, "id", 'x', 'y', 'z', "vx", "vy", "vz");
+        addLineAlreadyOpen(d_file, "id", 'x', 'y', 'z', "vx", "vy", "vz");
     }
 
     for (unsigned int frame = 0; frame < max_frame; ++frame)
@@ -71,16 +78,16 @@ void Utilities::parallelSims(float L, float scale, uint32_t seed, float eta, flo
                 const glm::vec2& pos  = swarm.positions[i];
                 const glm::vec2& vhat = swarm.headings[i];
                 // TODO: keep file open between writes
-                Utilities::addLine(d_path, i, pos.x, pos.y, vhat.x, vhat.y);
+                addLineAlreadyOpen(d_file, i, pos.x, pos.y, vhat.x, vhat.y);
             }
             else
             {
                 const glm::vec3& pos  = swarm.positions[i];
                 const glm::vec3& vhat = swarm.headings[i];
-                Utilities::addLine(d_path, i, pos.x, pos.y, pos.z, vhat.x, vhat.y, vhat.z);
+                addLineAlreadyOpen(d_file, i, pos.x, pos.y, pos.z, vhat.x, vhat.y, vhat.z);
             }
         }
-    }
+    } // d_file flushes and closes
 }
 
 // explicitly instantiate for the linker

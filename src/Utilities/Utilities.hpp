@@ -25,17 +25,27 @@ namespace Utilities
         }
     };
 
+    inline std::ofstream openFile(const std::string& filename)
+    {
+        std::ofstream file(filename + ".txt", std::ios::app);
+        checkFileOpen(file);
+        return file;
+    }
+
+    template<typename... Args>
+    void addLineAlreadyOpen(std::ofstream& file, const Args&... args)
+    {
+        bool first = true;
+        ((file << (first ? "" : ",") << args, first = false), ...);
+        file << '\n';
+    }
+
     template<typename... Args>
     void addLine(const std::string& filename, const Args&... args)
     {
-        std::ofstream outFile(filename + ".txt", std::ios::app);
-        checkFileOpen(outFile);
-
-        bool first = true;
-        ((outFile << (first ? "" : ",") << args, first = false), ...);
-        outFile << '\n';
-
-        outFile.close();
+        std::ofstream file = openFile(filename);
+        addLineAlreadyOpen(file, args...);
+        file.close();
     }
 
     template <std::size_t Dim>
